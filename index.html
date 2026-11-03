@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Order Book</title>
+<meta name="description" content="A tailor's record book for clients, measurements, orders, payments and fabric.">
+<meta name="theme-color" content="#F2C230">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: tape-measure header, one narrow working column; rows not cards; numbers in mono */
+:root{
+  --bg:#F2F3F6; --surface:#FFFFFF; --ink:#1B2233; --muted:#5E6677; --line:#DCDFE7;
+  --tape:#F2C230; --tapeInk:#2A2410; --denim:#2F4A7A; --denimSoft:#E3E9F4;
+  --ok:#21704A; --okSoft:#DFF1E7; --warn:#9A5B00; --warnSoft:#FBEBD0; --bad:#B4312A; --badSoft:#F8E0DE;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#11141B; --surface:#1A1E28; --ink:#E8EAF0; --muted:#9BA2B3; --line:#2B3140;
+  --tape:#E9B925; --tapeInk:#2A2410; --denim:#93ADDD; --denimSoft:#223150;
+  --ok:#6FCF9C; --okSoft:#163326; --warn:#F0B35A; --warnSoft:#3A2A10; --bad:#F08A82; --badSoft:#3D1C1A; color-scheme:dark}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;padding-bottom:env(safe-area-inset-bottom,0px)}
+img{max-width:100%}
+[hidden]{display:none!important}
+.wrap{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.ruler{height:16px;background-color:var(--tape);
+  background-image:repeating-linear-gradient(90deg,var(--tapeInk) 0 1px,transparent 1px 50px),repeating-linear-gradient(90deg,var(--tapeInk) 0 1px,transparent 1px 10px);
+  background-size:100% 70%,100% 35%;background-repeat:no-repeat}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:10px 2px}
+.brand h1{font-family:var(--display);font-weight:800;font-size:1.45rem;letter-spacing:-.01em;margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gear{background:none;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:6px 10px;font:600 .82rem var(--body);cursor:pointer;white-space:nowrap}
+.gear[aria-current="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+nav.tabs{display:flex;gap:2px}
+nav.tabs button{flex:1;background:none;border:0;border-bottom:3px solid transparent;padding:10px 2px;font:600 .88rem var(--body);color:var(--muted);cursor:pointer;white-space:nowrap}
+nav.tabs button[aria-current="true"]{color:var(--ink);border-bottom-color:var(--tape)}
+main{padding-block:18px 64px;display:flex;flex-direction:column;gap:18px}
+h2{font-family:var(--display);font-weight:700;font-size:1.3rem;margin:0;text-wrap:balance}
+h3{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0;font-weight:700}
+p{margin:0}
+.muted{color:var(--muted)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spread{justify-content:space-between}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stat{background:var(--surface);padding:12px 14px;min-width:0}
+.stat b{display:block;font-family:var(--mono);font-size:1.3rem;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.stat span{font-size:.78rem;color:var(--muted)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;font:500 .85rem var(--body);white-space:nowrap;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+input,select,textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%;min-width:0}
+textarea{min-height:70px;resize:vertical}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--denim);outline-offset:1px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600;color:var(--muted);min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1.2fr 1fr 1.4fr auto;gap:8px;align-items:end}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:9px 14px;font:600 .9rem var(--body);cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn.primary{background:var(--tape);border-color:var(--tape);color:var(--tapeInk)}
+.btn.wa{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.btn.danger{color:var(--bad)}
+.btn.small{padding:5px 10px;font-size:.8rem}
+.btn:disabled{opacity:.5;cursor:default}
+.list{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.item{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 14px;border-top:1px solid var(--line);cursor:pointer;text-align:left;width:100%;background:none;border-left:0;border-right:0;border-bottom:0;color:inherit;font:inherit}
+.item:first-child{border-top:0}
+.item:hover{background:var(--bg)}
+.item .t{font-weight:600;min-width:0}
+.item .s{font-size:.85rem;color:var(--muted);min-width:0}
+.item .r{text-align:right;font-family:var(--mono);font-size:.85rem;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--denimSoft);color:var(--denim);letter-spacing:.02em}
+.pill.ok{background:var(--okSoft);color:var(--ok)} .pill.warn{background:var(--warnSoft);color:var(--warn)}
+.pill.bad{background:var(--badSoft);color:var(--bad)} .pill.done{background:var(--bg);color:var(--muted)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.meas{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.meas div{background:var(--surface);padding:8px 10px;display:flex;justify-content:space-between;gap:8px;min-width:0}
+.meas span{font-size:.8rem;color:var(--muted)}
+.meas b{font-family:var(--mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:right}
+.steps{display:flex;flex-wrap:wrap;gap:6px}
+.steps button{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:6px;padding:6px 10px;font:600 .8rem var(--body);cursor:pointer}
+.steps button[aria-pressed="true"]{background:var(--denim);color:var(--surface);border-color:var(--denim)}
+.empty{padding:28px 18px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font-size:1.05rem;margin-bottom:4px}
+.note{padding:10px 12px;border-radius:8px;background:var(--warnSoft);color:var(--warn);font-size:.88rem}
+.note.info{background:var(--denimSoft);color:var(--denim)}
+.note a{color:inherit;font-weight:700}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:22px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+.drop img{max-height:260px;border-radius:6px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:8px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
+.back{background:none;border:0;color:var(--denim);font:600 .9rem var(--body);cursor:pointer;padding:0;align-self:flex-start;text-align:left}
+.extra{display:grid;grid-template-columns:1fr 100px auto;gap:8px;align-items:center}
+.sep{border-top:1px solid var(--line);margin:4px 0}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.facts div{background:var(--surface);padding:10px 12px;min-width:0}
+.facts span{display:block;font-size:.75rem;color:var(--muted)}
+.facts b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.95rem;overflow-wrap:anywhere}
+.facts b.txt{font-family:var(--body)}
+.pay{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:.9rem}
+.pay:first-child{border-top:0}
+.pay .amt{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px}
+.photos figure{margin:0;display:flex;flex-direction:column;gap:4px;min-width:0}
+.photos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;background:var(--bg);border:1px solid var(--line);cursor:zoom-in}
+.photos figcaption{display:flex;justify-content:space-between;gap:4px;font-size:.78rem;color:var(--muted);align-items:center}
+.photos figcaption button{background:none;border:0;color:var(--bad);font:600 .75rem var(--body);cursor:pointer;padding:0}
+.bars{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;align-items:end;height:170px;padding-top:8px}
+.bar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;min-width:0}
+.bar i{display:block;width:100%;max-width:44px;background:var(--denim);border-radius:4px 4px 0 0;min-height:2px}
+.bar.now i{background:var(--tape)}
+.bar small{font-family:var(--mono);font-size:.68rem;color:var(--muted);white-space:nowrap}
+.bar span{font-size:.75rem;color:var(--muted)}
+.hbar{display:grid;grid-template-columns:minmax(0,9rem) 1fr 2.5rem;gap:10px;align-items:center;font-size:.88rem}
+.hbar .track{height:10px;background:var(--bg);border-radius:5px;overflow:hidden}
+.hbar .track i{display:block;height:100%;background:var(--denim)}
+.hbar b{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.hbar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview img{border:1px solid var(--line);border-radius:8px;max-height:520px;width:auto;margin:0 auto;display:block}
+.swatch{width:40px;height:40px;border-radius:6px;object-fit:cover;border:1px solid var(--line);background:var(--bg);display:block}
+.fitem{grid-template-columns:auto 1fr auto}
+.viewer{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top,0px)) 16px max(16px,env(safe-area-inset-bottom,0px))}
+.viewer img{max-height:100%;max-width:100%;object-fit:contain;border-radius:6px}
+ol.howto{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:6px}
+code{font-family:var(--mono);font-size:.85em;background:var(--bg);padding:1px 5px;border-radius:4px}
+@media (max-width:480px){.grid2{grid-template-columns:1fr}.stat b{font-size:1.05rem}.facts{grid-template-columns:repeat(2,1fr)}.grid3{grid-template-columns:1fr 1fr}nav.tabs button{font-size:.8rem}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="ruler" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="brand"><h1 id="shopname">Order Book</h1><button class="gear" id="tab-settings" onclick="go('settings')">Settings</button></div>
+    <nav class="tabs" aria-label="Sections">
+      <button id="tab-orders" onclick="go('orders')">Orders</button>
+      <button id="tab-clients" onclick="go('clients')">Clients</button>
+      <button id="tab-fabric" onclick="go('fabric')">Fabric</button>
+      <button id="tab-money" onclick="go('money')">Money</button>
+      <button id="tab-scan" onclick="go('scan')">Scan</button>
+    </nav>
+  </div>
+</header>
+<main class="wrap" id="main"><div class="empty">Opening your book…</div></main>
+<div class="toast" id="toast" hidden></div>
+<div class="viewer" id="viewer" hidden onclick="this.hidden=true"><img id="viewer-img" alt=""></div>
+
+<script>
+"use strict";
+const MEAS=[["neck","Neck"],["shoulder","Shoulder"],["bust","Bust / Chest"],["underbust","Under-bust"],["waist","Waist"],["hips","Hips"],["sleeve","Sleeve length"],["bicep","Bicep"],["wrist","Wrist"],["frontLength","Front length"],["backLength","Back length"],["dressLength","Dress length"],["skirtLength","Skirt length"],["trouserLength","Trouser length"],["inseam","Inseam"],["thigh","Thigh"]];
+const STATUSES=["Measured","Cutting","Sewing","Fitting","Ready","Collected"];
+const PHOTO_LABELS=["Fabric","Style reference","Fitting","Finished"];
+const LOW_STOCK=2, BACKUP_DAYS=7, DEFAULT_MODEL="gemini-flash-latest";
+const COLS={clients:"clients",orders:"orders",fabrics:"fabrics"};
+const S={clients:{},orders:{},fabrics:{},shop:{},photoUrls:{},view:"orders",id:null,ctx:null,filter:"active",q:"",cq:"",fq:"",scan:{status:"idle"},confirmDel:false,status:null,msgTpl:null,msgText:"",doc:null,confirmPay:null,confirmPhoto:null,uploading:false,fabPhoto:undefined,ready:false,importMsg:null,aiTest:null};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num=v=>{if(v==null||v==="")return null;const n=parseFloat(String(v).replace(/[^0-9.\-]/g,""));return isNaN(n)?null:n};
+const cur=()=>S.shop.currency||"$";
+const money=n=>n==null||isNaN(n)?"—":(n<0?"-":"")+cur()+Math.abs(Number(n)).toLocaleString(undefined,{maximumFractionDigits:2});
+const now=()=>new Date().toISOString();
+function today(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
+const daysTo=d=>d?Math.round((new Date(d+"T00:00")-new Date(today()+"T00:00"))/864e5):null;
+const fmtDate=d=>d?new Date(d+"T00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"}):"No date";
+const longDate=d=>d?new Date(d+"T00:00").toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"}):"";
+const fmtLong=d=>d?new Date(d+"T00:00").toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"}):"";
+const val=id=>{const el=document.getElementById(id);return el?el.value.trim():""};
+const clientName=o=>(S.clients[o.clientId]||{}).name||o.clientName||"Unknown client";
+const paid=o=>(num(o.deposit)||0)+(o.payments||[]).reduce((s,p)=>s+(num(p.amount)||0),0);
+const balance=o=>{const p=num(o.price);return p==null?null:Math.round((p-paid(o))*100)/100};
+const photoUrl=id=>S.photoUrls[id]||"";
+const shopName=()=>S.shop.name||"the tailor";
+const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,2800)}
+function showPhoto(id){$("#viewer-img").src=photoUrl(id);$("#viewer").hidden=false}
+
+/* ---------- On-device storage (IndexedDB) ---------- */
+const IDB={db:null,
+  open(){return new Promise((res,rej)=>{const r=indexedDB.open("orderbook",1);
+    r.onupgradeneeded=()=>{const d=r.result;["clients","orders","fabrics","settings","photos"].forEach(s=>{if(!d.objectStoreNames.contains(s))d.createObjectStore(s)})};
+    r.onsuccess=()=>{this.db=r.result;res()};r.onerror=()=>rej(r.error)})},
+  run(store,mode,fn){return new Promise((res,rej)=>{const t=this.db.transaction(store,mode);const req=fn(t.objectStore(store));t.oncomplete=()=>res(req&&req.result);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})},
+  put(store,key,value){return this.run(store,"readwrite",s=>s.put(value,key))},
+  del(store,key){return this.run(store,"readwrite",s=>s.delete(key))},
+  get(store,key){return this.run(store,"readonly",s=>s.get(key))},
+  entries(store){return new Promise((res,rej)=>{const out=[];const t=this.db.transaction(store,"readonly");const c=t.objectStore(store).openCursor();
+    c.onsuccess=()=>{const cur=c.result;if(cur){out.push([cur.key,cur.value]);cur.continue()}};t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error)})},
+  clear(store){return this.run(store,"readwrite",s=>s.clear())}
+};
+async function put(col,id,data){
+  id=id||newId();
+  const clean=JSON.parse(JSON.stringify(data));delete clean.id;
+  await IDB.put(col,id,clean);S[col][id]={...clean,id};askPersist();return id;
+}
+async function upd8(col,id,data){const prev=S[col][id]||{};return put(col,id,{...prev,...data})}
+async function del(col,id){await IDB.del(col,id);delete S[col][id]}
+async function saveShopData(d){S.shop={...S.shop,...d};await IDB.put("settings","shop",S.shop)}
+let persistAsked=false;
+function askPersist(){if(persistAsked)return;persistAsked=true;try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}}
+
+/* photos: shrink before storing so the phone and backups stay small */
+async function shrinkImage(file,maxSide,quality){
+  const bmp=await new Promise((res,rej)=>{const img=new Image();img.onload=()=>res(img);img.onerror=()=>rej(new Error("bad image"));img.src=URL.createObjectURL(file)});
+  const k=Math.min(1,maxSide/Math.max(bmp.naturalWidth,bmp.naturalHeight));
+  const cv=document.createElement("canvas");cv.width=Math.round(bmp.naturalWidth*k);cv.height=Math.round(bmp.naturalHeight*k);
+  cv.getContext("2d").drawImage(bmp,0,0,cv.width,cv.height);URL.revokeObjectURL(bmp.src);
+  return await new Promise(r=>cv.toBlob(r,"image/jpeg",quality));
+}
+async function savePhoto(file){
+  const blob=await shrinkImage(file,1600,0.8);const id="p"+newId();
+  await IDB.put("photos",id,blob);S.photoUrls[id]=URL.createObjectURL(blob);askPersist();return id;
+}
+async function deletePhoto(id){try{await IDB.del("photos",id)}catch(e){}if(S.photoUrls[id])URL.revokeObjectURL(S.photoUrls[id]);delete S.photoUrls[id]}
+
+function go(view,id=null,ctx=null){
+  S.view=view;S.id=id;S.ctx=ctx;S.confirmDel=false;S.status=null;S.msgTpl=null;S.msgText="";S.confirmPay=null;S.confirmPhoto=null;S.fabPhoto=undefined;S.importMsg=null;S.aiTest=null;
+  if(S.doc){URL.revokeObjectURL(S.doc.url);S.doc=null}
+  render();window.scrollTo(0,0);
+}
+
+/* ---------- shared bits ---------- */
+function dueBadge(o){
+  if(o.status==="Collected")return `<span class="pill done">Collected</span>`;
+  if(o.status==="Ready")return `<span class="pill ok">Ready</span>`;
+  const n=daysTo(o.dueDate);
+  if(n==null)return `<span class="pill">${esc(o.status||"Measured")}</span>`;
+  if(n<0)return `<span class="pill bad">${-n}d overdue</span> <span class="pill">${esc(o.status||"Measured")}</span>`;
+  if(n<=3)return `<span class="pill warn">${n===0?"Due today":"Due in "+n+"d"}</span> <span class="pill">${esc(o.status||"Measured")}</span>`;
+  return `<span class="pill">${esc(o.status||"Measured")}</span>`;
+}
+function orderRow(o){
+  const b=balance(o);
+  return `<button class="item" onclick="go('order','${esc(o.id)}')">
+    <div class="t">${esc(o.garment||"Garment")} <span class="muted" style="font-weight:400">· ${esc(clientName(o))}</span></div>
+    <div class="r">${fmtDate(o.dueDate)}</div>
+    <div class="s">${dueBadge(o)} ${o.fabric?"· "+esc(o.fabric):""}</div>
+    <div class="r ${b>0?"":"muted"}">${b==null?"":b>0?money(b)+" owed":"Paid"}</div>
+  </button>`;
+}
+function backupNudge(){
+  const has=Object.keys(S.orders).length+Object.keys(S.clients).length;
+  if(!has)return "";
+  const last=S.shop.lastBackup;const days=last?Math.floor((Date.now()-new Date(last))/864e5):null;
+  if(days!=null&&days<BACKUP_DAYS)return "";
+  return `<div class="note">${last?`Last backup was ${days} days ago.`:"You haven't saved a backup yet."} Your records live only on this phone. <a href="#" onclick="go('settings');return false">Save a backup</a> to Google Drive or WhatsApp.</div>`;
+}
+function welcome(){
+  if(Object.keys(S.orders).length||Object.keys(S.clients).length||S.shop.name)return "";
+  return `<div class="panel">
+    <h2>Welcome to your Order Book</h2>
+    <ol class="howto">
+      <li><a href="#" onclick="go('settings');return false">Add your shop name</a> so it shows on receipts and messages.</li>
+      <li>Add a client and their measurements, or <a href="#" onclick="go('scan');return false">scan a page</a> from your book.</li>
+      <li>Install the app: tap your browser menu, then <b>Add to Home screen</b>.</li>
+    </ol>
+  </div>`;
+}
+
+/* ---------- Orders ---------- */
+function renderOrders(){
+  const all=Object.values(S.orders);
+  const active=all.filter(o=>o.status!=="Collected");
+  const week=active.filter(o=>o.status!=="Ready"&&daysTo(o.dueDate)!=null&&daysTo(o.dueDate)<=7);
+  const ready=all.filter(o=>o.status==="Ready");
+  const owed=all.reduce((s,o)=>s+Math.max(0,balance(o)||0),0);
+  const filters={active:["In progress",o=>o.status!=="Collected"&&o.status!=="Ready"],week:["Due this week",o=>week.includes(o)],ready:["Ready to collect",o=>o.status==="Ready"],owing:["Owing money",o=>(balance(o)||0)>0],collected:["Collected",o=>o.status==="Collected"],all:["All",()=>true]};
+  const q=S.q.toLowerCase();
+  let list=all.filter(filters[S.filter][1]).filter(o=>!q||(o.garment+" "+clientName(o)+" "+(o.fabric||"")).toLowerCase().includes(q));
+  list.sort((a,b)=>(a.dueDate||"9999").localeCompare(b.dueDate||"9999"));
+  return `${welcome()}${backupNudge()}
+  <div class="stats">
+    <div class="stat"><b>${week.length}</b><span>due in 7 days</span></div>
+    <div class="stat"><b>${ready.length}</b><span>ready to collect</span></div>
+    <div class="stat"><b>${money(owed)}</b><span>balances owed</span></div>
+  </div>
+  <div class="row spread"><h2>Orders</h2><button class="btn primary" onclick="go('orderForm',null)">New order</button></div>
+  <div class="chips">${Object.entries(filters).map(([k,[l]])=>`<button class="chip" aria-pressed="${S.filter===k}" onclick="S.filter='${k}';render()">${l}</button>`).join("")}</div>
+  <input id="q-orders" type="search" placeholder="Search garment, client or fabric" value="${esc(S.q)}" oninput="S.q=this.value;renderKeep('q-orders')">
+  ${list.length?`<div class="list">${list.map(orderRow).join("")}</div>`:
+    `<div class="list"><div class="empty"><b>${all.length?"Nothing here":"No orders yet"}</b>${all.length?"Try another filter.":"Add an order, or scan a page from your record book to bring existing ones in."}</div></div>`}`;
+}
+
+/* ---------- Order detail ---------- */
+const first=c=>((c&&c.name)||"").split(" ")[0]||"there";
+const TEMPLATES={
+  fitting:["Fitting reminder",(o,c)=>`Hi ${first(c)}, this is ${shopName()}. Your ${o.garment||"garment"} is ready for a fitting${o.fittingDate?" on "+longDate(o.fittingDate):""}. Please let me know a time that suits you.`],
+  ready:["Ready to collect",(o,c)=>{const b=balance(o);return `Hi ${first(c)}, good news from ${shopName()}! Your ${o.garment||"garment"} is ready for collection.${b>0?" The balance due is "+money(b)+".":""} Thank you!`}],
+  balance:["Balance reminder",(o,c)=>`Hi ${first(c)}, a friendly reminder from ${shopName()} that ${money(balance(o))} is still due on your ${o.garment||"order"}. Thank you.`],
+  progress:["Progress update",(o,c)=>`Hi ${first(c)}, a quick update from ${shopName()}: your ${o.garment||"garment"} is at the ${(o.status||"Measured").toLowerCase()} stage${o.dueDate?" and on track for "+longDate(o.dueDate):""}.`]
+};
+function waNumber(phone){
+  let d=String(phone||"").replace(/\D/g,"");if(!d)return "";
+  const cc=String(S.shop.countryCode||"263").replace(/\D/g,"");
+  if(d.startsWith("00"))d=d.slice(2);else if(d.startsWith("0"))d=cc+d.slice(1);
+  return d;
+}
+const waHref=(phone,text)=>`https://wa.me/${waNumber(phone)}?text=${encodeURIComponent(text)}`;
+
+function renderOrder(){
+  const o=S.orders[S.id];
+  if(!o)return `<button class="back" onclick="go('orders')">← Orders</button><div class="empty">This order was removed.</div>`;
+  const c=S.clients[o.clientId];
+  const b=balance(o);
+  const pays=[];
+  if(num(o.deposit))pays.push({amount:num(o.deposit),date:o.depositDate||(o.createdAt||"").slice(0,10),note:"Deposit",dep:true});
+  (o.payments||[]).forEach((p,i)=>pays.push({...p,i}));
+  const stock=o.stockId&&S.fabrics[o.stockId];
+  if(S.msgTpl==null){S.msgTpl=o.status==="Ready"?"ready":o.status==="Fitting"?"fitting":(b>0&&o.status==="Collected")?"balance":"progress";S.msgText=TEMPLATES[S.msgTpl][1](o,c)}
+  const phone=c&&c.phone;
+  return `<button class="back" onclick="go('orders')">← Orders</button>
+  <div class="row spread"><div style="min-width:0"><h2>${esc(o.garment||"Order")}</h2>
+    ${c?`<button class="back" onclick="go('client','${esc(c.id)}')">${esc(c.name)}</button>`:`<span class="muted">${esc(clientName(o))}</span>`}</div>
+    <button class="btn" onclick="go('orderForm','${esc(o.id)}')">Edit</button></div>
+  <div class="steps" role="group" aria-label="Stage">${STATUSES.map(s=>`<button aria-pressed="${(o.status||"Measured")===s}" onclick="setStage('${s}')">${s}</button>`).join("")}</div>
+  <div class="facts">
+    <div><span>Due</span><b class="txt">${o.dueDate?esc(fmtDate(o.dueDate)):"—"}</b></div>
+    <div><span>Fitting</span><b class="txt">${o.fittingDate?esc(fmtDate(o.fittingDate)):"—"}</b></div>
+    <div><span>Fabric</span><b class="txt">${esc(o.fabric||"—")}${stock?` <span class="muted" style="font-size:.8rem">(${esc(o.stockMetres)}m from stock)</span>`:""}</b></div>
+    <div><span>Price</span><b>${money(num(o.price))}</b></div>
+    <div><span>Paid</span><b>${money(paid(o))}</b></div>
+    <div><span>Balance</span><b style="color:${b>0?"var(--bad)":"var(--ok)"}">${b==null?"—":b>0?money(b):"Paid"}</b></div>
+  </div>
+  ${o.notes?`<div class="panel"><h3>Notes</h3><div style="white-space:pre-wrap">${esc(o.notes)}</div></div>`:""}
+
+  <div class="panel">
+    <h3>Payments</h3>
+    ${pays.length?`<div>${pays.map(p=>`<div class="pay"><span class="muted">${esc(fmtDate(p.date))}</span><span>${esc(p.note||"Payment")}</span><span class="amt">${money(num(p.amount))}</span>
+      ${!p.dep?`<button class="btn small danger" onclick="removePayment(${p.i})">${S.confirmPay===p.i?"Confirm":"Remove"}</button>`:"<span></span>"}</div>`).join("")}</div>`:`<span class="muted">No payments yet.</span>`}
+    <div class="grid3">
+      <label class="f">Amount<input id="p-amt" inputmode="decimal" placeholder="${b>0?esc(b):""}"></label>
+      <label class="f">Date<input id="p-date" type="date" value="${today()}"></label>
+      <label class="f">Note<input id="p-note" placeholder="Cash, EcoCash, bank…"></label>
+      <button class="btn primary" onclick="addPayment()">Add</button></div>
+  </div>
+
+  <div class="panel">
+    <div class="row spread"><h3>Photos</h3>${S.uploading?`<span class="muted" style="font-size:.85rem">Saving photo…</span>`:""}</div>
+    ${(o.photos||[]).length?`<div class="photos">${o.photos.map((p,i)=>`<figure><img src="${photoUrl(p.id)}" alt="${esc(p.label)}" onclick="showPhoto('${esc(p.id)}')">
+      <figcaption><span>${esc(p.label)}</span><button onclick="removePhoto(${i})">${S.confirmPhoto===i?"Confirm":"Remove"}</button></figcaption></figure>`).join("")}</div>`:`<span class="muted">Add the fabric, a style picture the client showed you, or the finished piece.</span>`}
+    <div class="row"><select id="ph-label" style="width:auto">${PHOTO_LABELS.map(l=>`<option>${l}</option>`).join("")}</select>
+      <label class="btn" for="ph-file">Add photo</label><input id="ph-file" type="file" accept="image/*" hidden onchange="addPhoto(this)"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Message ${esc(c?first(c):"client")}</h3>
+    <div class="chips">${Object.entries(TEMPLATES).map(([k,[l]])=>`<button class="chip" aria-pressed="${S.msgTpl===k}" onclick="pickTpl('${k}')">${l}</button>`).join("")}</div>
+    <textarea id="msg-text" style="min-height:120px" oninput="S.msgText=this.value;updateWa()">${esc(S.msgText)}</textarea>
+    <div class="row">
+      ${phone?`<a class="btn wa" id="wa-link" target="_blank" rel="noopener" href="${esc(waHref(phone,S.msgText))}">Open in WhatsApp</a>`:""}
+      <button class="btn" onclick="copy(document.getElementById('msg-text').value,'Message copied')">Copy message</button>
+    </div>
+    ${phone?`<span class="muted" style="font-size:.8rem">Sends to ${esc(phone)} as +${esc(waNumber(phone))}.</span>`:`<span class="muted" style="font-size:.85rem">Add a phone number to ${c?esc(c.name):"the client"} to open WhatsApp directly.</span>`}
+  </div>
+
+  <div class="panel">
+    <h3>Receipt & job card</h3>
+    <div class="row"><button class="btn" onclick="makeDoc('receipt')">Make receipt</button><button class="btn" onclick="makeDoc('job')">Make job card</button></div>
+    ${S.doc?`<div class="preview"><img src="${S.doc.url}" alt="${esc(S.doc.label)}"></div>
+      <div class="row">${canShareFiles()?`<button class="btn wa" onclick="shareDoc()">Share</button>`:""}<button class="btn primary" onclick="saveDoc()">Save image</button></div>`:""}
+  </div>`;
+}
+function pickTpl(k){const o=S.orders[S.id];S.msgTpl=k;S.msgText=TEMPLATES[k][1](o,S.clients[o.clientId]);render()}
+function updateWa(){const a=document.getElementById("wa-link");const o=S.orders[S.id];const c=o&&S.clients[o.clientId];if(a&&c)a.href=waHref(c.phone,S.msgText)}
+async function setStage(s){
+  const o=S.orders[S.id];if(!o)return;
+  const upd={status:s,updatedAt:now()};
+  if(s==="Collected"&&!o.collectedAt)upd.collectedAt=today();
+  S.msgTpl=null;
+  try{await upd8("orders",o.id,upd);toast("Moved to "+s);render()}catch(e){toast(errMsg(e))}
+}
+async function addPayment(){
+  const a=num(val("p-amt"));if(!a){toast("Enter the amount paid");return}
+  const o=S.orders[S.id];
+  try{await upd8("orders",o.id,{payments:[...(o.payments||[]),{amount:a,date:val("p-date")||today(),note:val("p-note")}],updatedAt:now()});toast("Payment of "+money(a)+" recorded");render()}catch(e){toast(errMsg(e))}
+}
+async function removePayment(i){
+  if(S.confirmPay!==i){S.confirmPay=i;return render()}
+  const o=S.orders[S.id];const p=[...(o.payments||[])];p.splice(i,1);S.confirmPay=null;
+  try{await upd8("orders",o.id,{payments:p,updatedAt:now()});toast("Payment removed");render()}catch(e){toast(errMsg(e))}
+}
+async function addPhoto(input){
+  const f=input.files&&input.files[0];if(!f)return;
+  const label=val("ph-label")||"Photo";S.uploading=true;render();
+  try{const id=await savePhoto(f);const o=S.orders[S.id];await upd8("orders",o.id,{photos:[...(o.photos||[]),{id,label}],updatedAt:now()});toast("Photo added")}
+  catch(e){toast("That photo couldn't be saved. Try another one.")}
+  S.uploading=false;render();
+}
+async function removePhoto(i){
+  if(S.confirmPhoto!==i){S.confirmPhoto=i;return render()}
+  const o=S.orders[S.id];const ph=[...(o.photos||[])];const [gone]=ph.splice(i,1);S.confirmPhoto=null;
+  try{await upd8("orders",o.id,{photos:ph,updatedAt:now()});await deletePhoto(gone.id);toast("Photo removed");render()}catch(e){toast(errMsg(e))}
+}
+
+/* ---------- Receipt / job card (canvas) ---------- */
+function wrapText(ctx,text,maxW){
+  const out=[];String(text||"").split("\n").forEach(par=>{let line="";par.split(" ").forEach(w=>{const t=line?line+" "+w:w;if(ctx.measureText(t).width>maxW&&line){out.push(line);line=w}else line=t});out.push(line)});return out;
+}
+function drawCard(rows){
+  const W=800,P=56,cv=document.createElement("canvas"),ctx=cv.getContext("2d");
+  const F={title:'800 40px "Bricolage Grotesque", sans-serif',big:'700 28px "Bricolage Grotesque", sans-serif',label:'700 15px Figtree, sans-serif',body:'500 20px Figtree, sans-serif',mono:'500 20px "IBM Plex Mono", monospace',monoB:'700 24px "IBM Plex Mono", monospace',small:'500 16px Figtree, sans-serif'};
+  const run=draw=>{
+    let y=24+48;
+    if(draw){ctx.fillStyle="#FFFFFF";ctx.fillRect(0,0,W,cv.height/2);ctx.fillStyle="#F2C230";ctx.fillRect(0,0,W,24);ctx.fillStyle="#2A2410";for(let x=0;x<=W;x+=10)ctx.fillRect(x,0,1.2,x%50===0?17:9)}
+    const text=(t,font,color,x,yy,align)=>{if(!draw)return;ctx.font=font;ctx.fillStyle=color;ctx.textAlign=align||"left";ctx.fillText(t,x,yy)};
+    for(const r of rows){
+      if(r.t==="title"){ctx.font=F.title;wrapText(ctx,r.text,W-2*P).forEach(l=>{y+=40;text(l,F.title,"#1B2233",P,y)});y+=8}
+      else if(r.t==="sub"){ctx.font=F.body;y+=28;text(r.text,F.body,"#5E6677",P,y);if(r.right)text(r.right,F.body,"#5E6677",W-P,y,"right")}
+      else if(r.t==="big"){ctx.font=F.big;wrapText(ctx,r.text,W-2*P).forEach(l=>{y+=34;text(l,F.big,"#1B2233",P,y)})}
+      else if(r.t==="label"){y+=34;text(r.text.toUpperCase(),F.label,"#2F4A7A",P,y);y+=4}
+      else if(r.t==="rule"){y+=18;if(draw){ctx.fillStyle="#DCDFE7";ctx.fillRect(P,y,W-2*P,2)}y+=4}
+      else if(r.t==="kv"){y+=32;text(r.k,r.bold?'700 22px Figtree, sans-serif':F.body,r.bold?"#1B2233":"#5E6677",P,y);text(r.v,r.bold?F.monoB:F.mono,r.color||"#1B2233",W-P,y,"right")}
+      else if(r.t==="text"){ctx.font=F.body;wrapText(ctx,r.text,W-2*P).forEach(l=>{y+=28;text(l,F.body,"#1B2233",P,y)})}
+      else if(r.t==="meas"){const colW=(W-2*P-24)/2;r.items.forEach((it,i)=>{const col=i%2,x=P+col*(colW+24);if(col===0)y+=30;text(it[0],F.body,"#5E6677",x,y);text(String(it[1]),F.mono,"#1B2233",x+colW,y,"right")})}
+      else if(r.t==="foot"){y+=40;text(r.text,F.small,"#5E6677",W/2,y,"center")}
+    }
+    return y+P;
+  };
+  const h=run(false);cv.width=W*2;cv.height=h*2;ctx.scale(2,2);run(true);return cv;
+}
+async function makeDoc(kind){
+  const o=S.orders[S.id];if(!o)return;const c=S.clients[o.clientId]||{};
+  try{await document.fonts.ready}catch(e){}
+  const rows=[{t:"title",text:S.shop.name||"Order Book"}];
+  if(S.shop.phone||S.shop.address)rows.push({t:"sub",text:[S.shop.phone,S.shop.address].filter(Boolean).join(" · ")});
+  rows.push({t:"rule"});
+  const ref="#"+String(o.id).slice(-6).toUpperCase();
+  if(kind==="receipt"){
+    rows.push({t:"label",text:"Receipt "+ref},{t:"sub",text:c.name||clientName(o),right:fmtLong(today())});
+    if(c.phone)rows.push({t:"sub",text:c.phone});
+    rows.push({t:"big",text:o.garment||"Garment"});
+    if(o.fabric)rows.push({t:"sub",text:"Fabric: "+o.fabric});
+    rows.push({t:"rule"},{t:"kv",k:"Price",v:money(num(o.price))});
+    if(num(o.deposit))rows.push({t:"kv",k:"Deposit · "+fmtDate(o.depositDate||(o.createdAt||"").slice(0,10)),v:money(num(o.deposit))});
+    (o.payments||[]).forEach(p=>rows.push({t:"kv",k:(p.note||"Payment")+" · "+fmtDate(p.date),v:money(num(p.amount))}));
+    rows.push({t:"rule"},{t:"kv",k:"Total paid",v:money(paid(o))});
+    const b=balance(o);rows.push({t:"kv",k:b>0?"Balance due":"Balance",v:b==null?"—":b>0?money(b):"Paid in full",bold:true,color:b>0?"#B4312A":"#21704A"});
+    if(o.dueDate&&o.status!=="Collected")rows.push({t:"sub",text:"Ready by "+fmtLong(o.dueDate)});
+    rows.push({t:"foot",text:"Thank you for your order."});
+  }else{
+    rows.push({t:"label",text:"Job card "+ref},{t:"big",text:o.garment||"Garment"},{t:"sub",text:c.name||clientName(o),right:c.phone||""});
+    rows.push({t:"rule"},{t:"kv",k:"Stage",v:o.status||"Measured"},{t:"kv",k:"Fitting",v:o.fittingDate?fmtLong(o.fittingDate):"—"},{t:"kv",k:"Due",v:o.dueDate?fmtLong(o.dueDate):"—"});
+    if(o.fabric)rows.push({t:"kv",k:"Fabric",v:o.fabric+(o.stockMetres?" ("+o.stockMetres+"m)":"")});
+    const items=MEAS.filter(([k])=>c.measurements&&c.measurements[k]!=null).map(([k,l])=>[l,c.measurements[k]]).concat(Object.entries(c.extra||{}));
+    if(items.length)rows.push({t:"label",text:"Measurements ("+(c.unit||"cm")+")"},{t:"meas",items});
+    if(o.notes)rows.push({t:"label",text:"Notes"},{t:"text",text:o.notes});
+  }
+  const cv=drawCard(rows);
+  const blob=await new Promise(r=>cv.toBlob(r,"image/png"));
+  if(S.doc)URL.revokeObjectURL(S.doc.url);
+  const slug=(c.name||"client").toLowerCase().replace(/[^a-z0-9]+/g,"-");
+  S.doc={blob,url:URL.createObjectURL(blob),label:kind==="receipt"?"Receipt":"Job card",name:`${kind==="receipt"?"receipt":"job-card"}-${slug}-${today()}.png`};
+  render();
+}
+function canShareFiles(){try{return !!(navigator.canShare&&navigator.canShare({files:[new File(["x"],"x.png",{type:"image/png"})]}))}catch(e){return false}}
+function downloadBlob(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+function saveDoc(){if(S.doc){downloadBlob(S.doc.blob,S.doc.name);toast("Saved to your downloads")}}
+async function shareDoc(){
+  if(!S.doc)return;
+  try{await navigator.share({files:[new File([S.doc.blob],S.doc.name,{type:"image/png"})],title:S.doc.label})}catch(e){if(e&&e.name!=="AbortError")toast("Couldn't open sharing. Save the image instead.")}
+}
+
+/* ---------- Clients ---------- */
+function renderClients(){
+  const q=S.cq.toLowerCase();
+  const list=Object.values(S.clients).filter(c=>!q||(c.name+" "+(c.phone||"")).toLowerCase().includes(q)).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  return `<div class="row spread"><h2>Clients</h2><button class="btn primary" onclick="go('clientForm',null)">New client</button></div>
+  <input id="q-clients" type="search" placeholder="Search by name or phone" value="${esc(S.cq)}" oninput="S.cq=this.value;renderKeep('q-clients')">
+  ${list.length?`<div class="list">${list.map(c=>{const os=Object.values(S.orders).filter(o=>o.clientId===c.id);const n=os.filter(o=>o.status!=="Collected").length;const owe=os.reduce((s,o)=>s+Math.max(0,balance(o)||0),0);
+    return `<button class="item" onclick="go('client','${esc(c.id)}')"><div class="t">${esc(c.name)}</div><div class="r">${n?n+" active":""}</div><div class="s">${esc(c.phone||"No phone")}</div><div class="r ${owe>0?"":"muted"}">${owe>0?money(owe)+" owed":Object.keys(c.measurements||{}).length+" measurements"}</div></button>`}).join("")}</div>`:
+  `<div class="list"><div class="empty"><b>${Object.keys(S.clients).length?"No match":"No clients yet"}</b>${Object.keys(S.clients).length?"":"Add a client with their measurements, or scan a page from your record book."}</div></div>`}`;
+}
+function renderClient(){
+  const c=S.clients[S.id];
+  if(!c)return `<button class="back" onclick="go('clients')">← Clients</button><div class="empty">This client was removed.</div>`;
+  const m=MEAS.filter(([k])=>c.measurements&&c.measurements[k]!=null);
+  const ex=Object.entries(c.extra||{});
+  const orders=Object.values(S.orders).filter(o=>o.clientId===c.id).sort((a,b)=>(b.dueDate||"").localeCompare(a.dueDate||""));
+  const spent=orders.reduce((s,o)=>s+paid(o),0);
+  return `<button class="back" onclick="go('clients')">← Clients</button>
+  <div class="row spread"><h2>${esc(c.name)}</h2><button class="btn" onclick="go('clientForm','${esc(c.id)}')">Edit</button></div>
+  ${c.phone?`<div class="row"><a href="tel:${esc(c.phone)}" style="font-family:var(--mono);color:inherit">${esc(c.phone)}</a>
+    <a class="btn small wa" target="_blank" rel="noopener" href="https://wa.me/${esc(waNumber(c.phone))}">WhatsApp</a></div>`:""}
+  <div class="panel">
+    <div class="row spread"><h3>Measurements · ${esc(c.unit||"cm")}</h3>${c.measuredOn?`<span class="muted" style="font-size:.8rem">Taken ${esc(fmtDate(c.measuredOn))}</span>`:""}</div>
+    ${m.length||ex.length?`<div class="meas">${m.map(([k,l])=>`<div><span>${l}</span><b>${esc(c.measurements[k])}</b></div>`).join("")}${ex.map(([k,v])=>`<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>`:`<span class="muted">No measurements yet.</span>`}
+    ${c.notes?`<div><h3>Notes</h3><p style="margin-top:4px;white-space:pre-wrap">${esc(c.notes)}</p></div>`:""}
+  </div>
+  <div class="row spread"><h2 style="font-size:1.1rem">Orders <span class="muted" style="font-size:.85rem;font-weight:500">· ${money(spent)} paid in total</span></h2><button class="btn primary" onclick="go('orderForm',null,'${esc(c.id)}')">New order</button></div>
+  ${orders.length?`<div class="list">${orders.map(orderRow).join("")}</div>`:`<div class="list"><div class="empty">No orders for ${esc(c.name)} yet.</div></div>`}`;
+}
+function measInputs(prefix,mm,extra){
+  return `<div class="mgrid">${MEAS.map(([k,l])=>`<label class="f">${l}<input id="${prefix}m-${k}" inputmode="decimal" value="${esc(mm&&mm[k]!=null?mm[k]:"")}"></label>`).join("")}</div>
+  <h3>Other measurements</h3>
+  <div id="${prefix}extras" style="display:flex;flex-direction:column;gap:8px">${Object.entries(extra||{}).map(([k,v])=>extraRow(prefix,k,v)).join("")}</div>
+  <button class="btn small" style="align-self:flex-start" onclick="addExtra('${prefix}')">Add another measurement</button>`;
+}
+let extraSeq=0;
+function extraRow(prefix,k="",v=""){const i=extraSeq++;return `<div class="extra" data-extra="${prefix}"><input placeholder="e.g. Armhole" value="${esc(k)}" id="${prefix}xk${i}"><input placeholder="Value" value="${esc(v)}" id="${prefix}xv${i}"><button class="btn small" onclick="this.parentElement.remove()" aria-label="Remove">✕</button></div>`}
+function addExtra(prefix){document.getElementById(prefix+"extras").insertAdjacentHTML("beforeend",extraRow(prefix))}
+function readMeas(prefix){
+  const m={};MEAS.forEach(([k])=>{const n=num(val(prefix+"m-"+k));if(n!=null)m[k]=n});
+  const extra={};document.querySelectorAll(`[data-extra="${prefix}"]`).forEach(r=>{const [a,b]=r.querySelectorAll("input");if(a.value.trim()&&b.value.trim())extra[a.value.trim()]=b.value.trim()});
+  return {m,extra};
+}
+function renderClientForm(){
+  const c=S.id?S.clients[S.id]:{};
+  if(S.id&&!c)return `<button class="back" onclick="go('clients')">← Clients</button><div class="empty">This client was removed.</div>`;
+  return `<button class="back" onclick="${S.id?`go('client','${esc(S.id)}')`:"go('clients')"}">← Back</button>
+  <h2>${S.id?"Edit "+esc(c.name):"New client"}</h2>
+  <div class="panel">
+    <div class="grid2"><label class="f">Name<input id="c-name" value="${esc(c.name)}" autocomplete="off"></label><label class="f">Phone<input id="c-phone" type="tel" value="${esc(c.phone)}"></label></div>
+    <div class="grid2"><label class="f">Units<select id="c-unit"><option value="cm" ${c.unit!=="in"?"selected":""}>Centimetres</option><option value="in" ${c.unit==="in"?"selected":""}>Inches</option></select></label>
+    <label class="f">Measured on<input id="c-date" type="date" value="${esc(c.measuredOn||today())}"></label></div>
+    <h3>Measurements</h3>
+    ${measInputs("c",c.measurements,c.extra)}
+    <label class="f">Notes<textarea id="c-notes" placeholder="Fit preferences, posture, style notes">${esc(c.notes)}</textarea></label>
+  </div>
+  ${S.status?`<div class="note">${esc(S.status)}</div>`:""}
+  <div class="row spread"><button class="btn primary" onclick="saveClient()">Save client</button>
+  ${S.id?`<button class="btn danger" onclick="delRecord('clients','clients')">${S.confirmDel?"Tap again to delete":"Delete client"}</button>`:""}</div>`;
+}
+async function saveClient(){
+  const name=val("c-name");if(!name){S.status="Add the client's name first.";return render()}
+  const {m,extra}=readMeas("c");const prev=S.id?S.clients[S.id]:{};
+  const data={name,phone:val("c-phone"),unit:val("c-unit"),measuredOn:val("c-date"),measurements:m,extra,notes:val("c-notes"),createdAt:prev.createdAt||now(),updatedAt:now()};
+  try{const id=await put("clients",S.id,data);toast("Client saved");go("client",id)}catch(e){S.status=errMsg(e);render()}
+}
+async function delRecord(col,back){
+  if(!S.confirmDel){S.confirmDel=true;return render()}
+  try{
+    const rec=S[col][S.id];
+    if(col==="orders")for(const p of rec.photos||[])await deletePhoto(p.id);
+    if(col==="fabrics"&&rec.photoId)await deletePhoto(rec.photoId);
+    await del(col,S.id);toast("Deleted");go(back);
+  }catch(e){S.status=errMsg(e);render()}
+}
+
+/* ---------- Order form ---------- */
+function renderOrderForm(){
+  const o=S.id?S.orders[S.id]:{status:"Measured",clientId:S.ctx};
+  if(S.id&&!o)return `<button class="back" onclick="go('orders')">← Orders</button><div class="empty">This order was removed.</div>`;
+  if(S._stFor!==S.id+"|"+S.ctx){S._st=o.status||"Measured";S._stFor=S.id+"|"+S.ctx}
+  const clients=Object.values(S.clients).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const fabrics=Object.values(S.fabrics).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const known=o.clientId&&S.clients[o.clientId];
+  return `<button class="back" onclick="${S.id?`go('order','${esc(S.id)}')`:"go('orders')"}">← Back</button>
+  <h2>${S.id?"Edit "+esc(o.garment||"order"):"New order"}</h2>
+  <div class="panel">
+    <label class="f">Client<select id="o-client" onchange="document.getElementById('o-newwrap').hidden=this.value!=='__new'">
+      <option value="__new" ${known?"":"selected"}>+ New client…</option>
+      ${clients.map(c=>`<option value="${esc(c.id)}" ${c.id===o.clientId?"selected":""}>${esc(c.name)}</option>`).join("")}
+    </select></label>
+    <label class="f" id="o-newwrap" ${known?"hidden":""}>New client name<input id="o-newname" value="${esc(!known?o.clientName||"":"")}"></label>
+    <label class="f">Garment<input id="o-garment" placeholder="e.g. Wedding dress, 3-piece suit" value="${esc(o.garment)}"></label>
+    <div class="grid2">
+      <label class="f">Fabric from stock<select id="o-stock"><option value="">Client's own / not from stock</option>
+        ${fabrics.map(f=>`<option value="${esc(f.id)}" ${f.id===o.stockId?"selected":""}>${esc(f.name)}${f.colour?" · "+esc(f.colour):""} (${esc(num(f.metres)??0)}m left)</option>`).join("")}</select></label>
+      <label class="f">Metres used<input id="o-metres" inputmode="decimal" value="${esc(o.stockMetres??"")}"></label>
+    </div>
+    <label class="f">Fabric description<input id="o-fabric" placeholder="Colour, type, who supplied it" value="${esc(o.fabric)}"></label>
+    <div class="grid2"><label class="f">Fitting date<input id="o-fitting" type="date" value="${esc(o.fittingDate)}"></label>
+    <label class="f">Due date<input id="o-due" type="date" value="${esc(o.dueDate)}"></label></div>
+    <div class="grid2"><label class="f">Price<input id="o-price" inputmode="decimal" value="${esc(o.price??"")}"></label>
+    <label class="f">Deposit paid<input id="o-deposit" inputmode="decimal" value="${esc(o.deposit??"")}"></label></div>
+    <div><h3 style="margin-bottom:6px">Stage</h3><div class="steps">${STATUSES.map(s=>`<button aria-pressed="${S._st===s}" onclick="S._st='${s}';this.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.textContent==='${s}'))">${s}</button>`).join("")}</div></div>
+    <label class="f">Notes<textarea id="o-notes" placeholder="Style details, lining, buttons, alterations">${esc(o.notes)}</textarea></label>
+  </div>
+  ${S.status?`<div class="note">${esc(S.status)}</div>`:""}
+  <div class="row spread"><button class="btn primary" onclick="saveOrder()">Save order</button>
+  ${S.id?`<button class="btn danger" onclick="delRecord('orders','orders')">${S.confirmDel?"Tap again to delete":"Delete order"}</button>`:""}</div>`;
+}
+async function saveOrder(){
+  let cid=val("o-client");const garment=val("o-garment");
+  if(!garment){S.status="Add the garment first.";return render()}
+  try{
+    let cname="";
+    if(cid==="__new"){cname=val("o-newname");if(!cname){S.status="Pick a client or type a new client's name.";return render()}
+      cid=await put("clients",null,{name:cname,phone:"",unit:"cm",measurements:{},extra:{},notes:"",createdAt:now(),updatedAt:now()})}
+    else cname=(S.clients[cid]||{}).name||"";
+    const prev=S.id?S.orders[S.id]:{};
+    const stockId=val("o-stock"),stockMetres=stockId?num(val("o-metres")):null;
+    let fabric=val("o-fabric");
+    if(!fabric&&stockId&&S.fabrics[stockId]){const f=S.fabrics[stockId];fabric=[f.name,f.colour].filter(Boolean).join(", ")}
+    const status=S._st||"Measured";
+    const data={...prev,clientId:cid,clientName:cname,garment,fabric,stockId,stockMetres,fittingDate:val("o-fitting"),dueDate:val("o-due"),price:num(val("o-price")),deposit:num(val("o-deposit")),depositDate:prev.depositDate||today(),payments:prev.payments||[],photos:prev.photos||[],status,collectedAt:status==="Collected"?(prev.collectedAt||today()):null,notes:val("o-notes"),createdAt:prev.createdAt||now(),updatedAt:now()};
+    const id=await put("orders",S.id,data);
+    const adj={};
+    if(prev.stockId)adj[prev.stockId]=(adj[prev.stockId]||0)+(num(prev.stockMetres)||0);
+    if(stockId)adj[stockId]=(adj[stockId]||0)-(stockMetres||0);
+    for(const [fid,d] of Object.entries(adj)){const f=S.fabrics[fid];if(d&&f)await upd8("fabrics",fid,{metres:Math.round(((num(f.metres)||0)+d)*100)/100,updatedAt:now()})}
+    toast("Order saved");go("order",id);
+  }catch(e){S.status=errMsg(e);render()}
+}
+
+/* ---------- Fabric stock ---------- */
+function renderFabric(){
+  const all=Object.values(S.fabrics);
+  const q=S.fq.toLowerCase();
+  const list=all.filter(f=>!q||(f.name+" "+(f.colour||"")+" "+(f.supplier||"")).toLowerCase().includes(q)).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const metres=all.reduce((s,f)=>s+(num(f.metres)||0),0);
+  const value=all.reduce((s,f)=>s+(num(f.metres)||0)*(num(f.costPerMetre)||0),0);
+  const low=all.filter(f=>(num(f.metres)||0)<LOW_STOCK).length;
+  return `<div class="stats">
+    <div class="stat"><b>${Math.round(metres*10)/10}m</b><span>in stock</span></div>
+    <div class="stat"><b>${money(value)}</b><span>stock value</span></div>
+    <div class="stat"><b>${low}</b><span>running low</span></div>
+  </div>
+  <div class="row spread"><h2>Fabric</h2><button class="btn primary" onclick="go('fabricForm',null)">Add fabric</button></div>
+  <input id="q-fabric" type="search" placeholder="Search name, colour or supplier" value="${esc(S.fq)}" oninput="S.fq=this.value;renderKeep('q-fabric')">
+  ${list.length?`<div class="list">${list.map(f=>{const m=num(f.metres)||0;
+    return `<button class="item fitem" onclick="go('fabricForm','${esc(f.id)}')">${f.photoId&&photoUrl(f.photoId)?`<img class="swatch" src="${photoUrl(f.photoId)}" alt="">`:`<span class="swatch"></span>`}
+      <div style="min-width:0"><div class="t">${esc(f.name)}${f.colour?` <span class="muted" style="font-weight:400">· ${esc(f.colour)}</span>`:""}</div><div class="s">${esc(f.supplier||"")}${f.costPerMetre?` · ${money(num(f.costPerMetre))}/m`:""}</div></div>
+      <div class="r">${m}m<br>${m<LOW_STOCK?`<span class="pill ${m<=0?"bad":"warn"}">${m<=0?"Out":"Low"}</span>`:""}</div></button>`}).join("")}</div>`:
+  `<div class="list"><div class="empty"><b>${all.length?"No match":"No fabric yet"}</b>${all.length?"":"Add the fabric you keep in the shop. Metres come off automatically when you use it on an order."}</div></div>`}`;
+}
+function renderFabricForm(){
+  const f=S.id?S.fabrics[S.id]:{};
+  if(S.id&&!f)return `<button class="back" onclick="go('fabric')">← Fabric</button><div class="empty">This fabric was removed.</div>`;
+  if(S.fabPhoto===undefined)S.fabPhoto=f.photoId||null;
+  const used=Object.values(S.orders).filter(o=>S.id&&o.stockId===S.id);
+  return `<button class="back" onclick="go('fabric')">← Fabric</button>
+  <h2>${S.id?esc(f.name):"Add fabric"}</h2>
+  <div class="panel">
+    <div class="grid2"><label class="f">Name<input id="f-name" placeholder="e.g. Ankara, linen, satin" value="${esc(f.name)}"></label><label class="f">Colour / pattern<input id="f-colour" value="${esc(f.colour)}"></label></div>
+    <div class="grid2"><label class="f">Metres in stock<input id="f-metres" inputmode="decimal" value="${esc(f.metres??"")}"></label><label class="f">Cost per metre<input id="f-cost" inputmode="decimal" value="${esc(f.costPerMetre??"")}"></label></div>
+    <label class="f">Supplier<input id="f-supplier" value="${esc(f.supplier)}"></label>
+    <label class="f">Notes<textarea id="f-notes">${esc(f.notes)}</textarea></label>
+    <div class="row">${S.fabPhoto&&photoUrl(S.fabPhoto)?`<img class="swatch" style="width:64px;height:64px" src="${photoUrl(S.fabPhoto)}" alt="">`:""}<label class="btn" for="f-photo">${S.uploading?"Saving photo…":S.fabPhoto?"Change photo":"Add photo"}</label><input id="f-photo" type="file" accept="image/*" hidden onchange="fabricPhoto(this)"></div>
+  </div>
+  ${used.length?`<div class="panel"><h3>Used on</h3>${used.map(o=>`<button class="back" onclick="go('order','${esc(o.id)}')">${esc(o.garment)} · ${esc(clientName(o))} · ${esc(o.stockMetres)}m</button>`).join("")}</div>`:""}
+  ${S.status?`<div class="note">${esc(S.status)}</div>`:""}
+  <div class="row spread"><button class="btn primary" onclick="saveFabric()">Save fabric</button>
+  ${S.id?`<button class="btn danger" onclick="delRecord('fabrics','fabric')">${S.confirmDel?"Tap again to delete":"Delete"}</button>`:""}</div>`;
+}
+async function fabricPhoto(input){
+  const file=input.files&&input.files[0];if(!file)return;
+  const keep={name:val("f-name"),colour:val("f-colour"),metres:val("f-metres"),cost:val("f-cost"),supplier:val("f-supplier"),notes:val("f-notes")};
+  S.uploading=true;render();restoreFab(keep);
+  try{S.fabPhoto=await savePhoto(file)}catch(e){toast("That photo couldn't be saved.")}
+  S.uploading=false;render();restoreFab(keep);
+}
+function restoreFab(k){[["f-name","name"],["f-colour","colour"],["f-metres","metres"],["f-cost","cost"],["f-supplier","supplier"],["f-notes","notes"]].forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=k[key]})}
+async function saveFabric(){
+  const name=val("f-name");if(!name){S.status="Add the fabric's name.";return render()}
+  const prev=S.id?S.fabrics[S.id]:{};
+  if(prev.photoId&&prev.photoId!==S.fabPhoto)await deletePhoto(prev.photoId);
+  const data={name,colour:val("f-colour"),metres:num(val("f-metres"))||0,costPerMetre:num(val("f-cost")),supplier:val("f-supplier"),notes:val("f-notes"),photoId:S.fabPhoto||null,createdAt:prev.createdAt||now(),updatedAt:now()};
+  try{await put("fabrics",S.id,data);toast("Fabric saved");go("fabric")}catch(e){S.status=errMsg(e);render()}
+}
+
+/* ---------- Money ---------- */
+function incomeEvents(){
+  const ev=[];
+  Object.values(S.orders).forEach(o=>{
+    if(num(o.deposit))ev.push({date:o.depositDate||(o.createdAt||"").slice(0,10),amt:num(o.deposit)});
+    (o.payments||[]).forEach(p=>ev.push({date:p.date||"",amt:num(p.amount)||0}));
+  });return ev;
+}
+function renderMoney(){
+  const ev=incomeEvents();
+  const t=today(),ym=t.slice(0,7);
+  const months=[];{const d=new Date(t+"T00:00");for(let i=5;i>=0;i--){const x=new Date(d.getFullYear(),d.getMonth()-i,1);months.push({key:`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`,label:x.toLocaleDateString(undefined,{month:"short"})})}}
+  months.forEach(m=>m.total=ev.filter(e=>(e.date||"").startsWith(m.key)).reduce((s,e)=>s+e.amt,0));
+  const max=Math.max(1,...months.map(m=>m.total));
+  const thisMonth=months[5].total,lastMonth=months[4].total;
+  const owed=Object.values(S.orders).reduce((s,o)=>s+Math.max(0,balance(o)||0),0);
+  const doneMonth=Object.values(S.orders).filter(o=>(o.collectedAt||"").startsWith(ym)).length;
+  const counts={};Object.values(S.orders).forEach(o=>{const k=(o.garment||"Other").trim().toLowerCase();if(!counts[k])counts[k]={n:0,label:(o.garment||"Other").trim()};counts[k].n++});
+  const top=Object.values(counts).sort((a,b)=>b.n-a.n).slice(0,6);const tmax=Math.max(1,...top.map(x=>x.n));
+  const owers=Object.values(S.orders).filter(o=>(balance(o)||0)>0).sort((a,b)=>balance(b)-balance(a)).slice(0,5);
+  return `<div class="stats">
+    <div class="stat"><b>${money(thisMonth)}</b><span>received this month</span></div>
+    <div class="stat"><b>${money(owed)}</b><span>still owed</span></div>
+    <div class="stat"><b>${doneMonth}</b><span>collected this month</span></div>
+  </div>
+  <div class="panel">
+    <div class="row spread"><h3>Money received, last 6 months</h3><span class="muted" style="font-size:.8rem">${lastMonth?`Last month ${money(lastMonth)}`:""}</span></div>
+    <div class="bars">${months.map((m,i)=>`<div class="bar ${i===5?"now":""}"><small>${m.total?money(Math.round(m.total)):""}</small><i style="height:${Math.round(m.total/max*120)}px"></i><span>${m.label}</span></div>`).join("")}</div>
+    <span class="muted" style="font-size:.8rem">Counts deposits and payments on the day they were paid.</span>
+  </div>
+  <div class="panel">
+    <h3>Most-ordered garments</h3>
+    ${top.length?top.map(x=>`<div class="hbar"><span title="${esc(x.label)}">${esc(x.label)}</span><div class="track"><i style="width:${Math.round(x.n/tmax*100)}%"></i></div><b>${x.n}</b></div>`).join(""):`<span class="muted">Shows up once you have orders.</span>`}
+  </div>
+  ${owers.length?`<div class="panel"><h3>Biggest balances owed</h3><div class="list" style="border:0">${owers.map(orderRow).join("")}</div></div>`:""}`;
+}
+
+/* ---------- Settings ---------- */
+let installEvt=null;
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installEvt=e;if(S.view==="settings")render()});
+function renderSettings(){
+  const last=S.shop.lastBackup;
+  return `<h2>Settings</h2>
+  <div class="panel">
+    <h3>Shop details</h3>
+    <span class="muted" style="font-size:.85rem">Shown on receipts, job cards and WhatsApp messages.</span>
+    <div class="grid2"><label class="f">Shop name<input id="sh-name" value="${esc(S.shop.name)}" placeholder="Your business name"></label><label class="f">Shop phone<input id="sh-phone" type="tel" value="${esc(S.shop.phone)}"></label></div>
+    <label class="f">Address<input id="sh-address" value="${esc(S.shop.address)}"></label>
+    <div class="grid2"><label class="f">Currency symbol<input id="sh-cur" value="${esc(S.shop.currency||"$")}"></label><label class="f">Country code for WhatsApp<input id="sh-cc" inputmode="numeric" value="${esc(S.shop.countryCode||"263")}"></label></div>
+    <button class="btn primary" style="align-self:flex-start" onclick="saveShop()">Save shop details</button>
+  </div>
+
+  <div class="panel">
+    <h3>Backup</h3>
+    <p class="muted" style="font-size:.9rem">Everything is stored on this phone only. Save a backup file each week and keep it in Google Drive or send it to yourself on WhatsApp. If you change phones, open the app on the new phone and restore the file.</p>
+    <p style="font-size:.9rem">${last?`Last backup: <b>${esc(new Date(last).toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"}))}</b>`:"<b>No backup saved yet.</b>"}</p>
+    <div class="row"><button class="btn primary" onclick="exportBackup()">Save backup</button>
+      <label class="btn" for="imp-file">Restore from backup</label><input id="imp-file" type="file" accept=".json,application/json" hidden onchange="importBackup(this)"></div>
+    ${S.importMsg?`<div class="note info">${esc(S.importMsg)}</div>`:""}
+    <span class="muted" style="font-size:.8rem" id="usage"></span>
+  </div>
+
+  <div class="panel">
+    <h3>Page scanning (Google Gemini)</h3>
+    <p class="muted" style="font-size:.9rem">Scanning uses Google's free Gemini service to read handwriting. It needs a free key from Google, set up once.</p>
+    <ol class="howto" style="font-size:.9rem">
+      <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in with a Google account.</li>
+      <li>Tap <b>Create API key</b>, then copy it.</li>
+      <li>Paste it below and tap <b>Save and test</b>.</li>
+    </ol>
+    <label class="f">Gemini API key<input id="ai-key" type="password" autocomplete="off" value="${esc(S.shop.geminiKey)}" placeholder="Starts with AIza…"></label>
+    <label class="f">Model<input id="ai-model" value="${esc(S.shop.geminiModel||DEFAULT_MODEL)}"></label>
+    <div class="row"><button class="btn primary" onclick="saveAi()">Save and test</button>${S.shop.geminiKey?`<button class="btn danger" onclick="clearAi()">Remove key</button>`:""}</div>
+    ${S.aiTest?`<div class="note ${S.aiTest.ok?"info":""}">${esc(S.aiTest.msg)}</div>`:""}
+    <span class="muted" style="font-size:.8rem">The key stays on this phone. On Google's free tier, Google may use what you send to improve its services, so only scan your measurement pages.</span>
+  </div>
+
+  ${installEvt?`<div class="panel"><h3>Install</h3><p class="muted" style="font-size:.9rem">Add Order Book to your home screen so it opens like an app, even without internet.</p><button class="btn primary" style="align-self:flex-start" onclick="installApp()">Install app</button></div>`:""}`;
+}
+async function saveShop(){
+  await saveShopData({name:val("sh-name"),phone:val("sh-phone"),address:val("sh-address"),currency:val("sh-cur")||"$",countryCode:val("sh-cc").replace(/\D/g,"")||"263",updatedAt:now()});
+  toast("Shop details saved");$("#shopname").textContent=S.shop.name||"Order Book";
+}
+async function saveAi(){
+  const key=val("ai-key"),model=val("ai-model")||DEFAULT_MODEL;
+  if(!key){S.aiTest={ok:false,msg:"Paste your Gemini key first."};return render()}
+  await saveShopData({geminiKey:key,geminiModel:model});
+  S.aiTest={ok:true,msg:"Testing the key…"};render();
+  try{await gemini([{text:'Reply with only this JSON: {"ok":true}'}]);S.aiTest={ok:true,msg:"The key works. You can scan pages now."}}
+  catch(e){S.aiTest={ok:false,msg:aiErr(e)}}
+  render();
+}
+async function clearAi(){await saveShopData({geminiKey:""});S.aiTest=null;toast("Key removed");render()}
+async function installApp(){if(!installEvt)return;installEvt.prompt();try{await installEvt.userChoice}catch(e){}installEvt=null;render()}
+
+/* backup */
+const blobToDataUrl=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(b)});
+async function exportBackup(){
+  try{
+    const photos={};for(const [k,b] of await IDB.entries("photos"))photos[k]=await blobToDataUrl(b);
+    const shop={...S.shop};delete shop.geminiKey;
+    const data={app:"order-book",version:1,exportedAt:now(),clients:S.clients,orders:S.orders,fabrics:S.fabrics,shop,photos};
+    const name=`order-book-backup-${today()}.json`;
+    const blob=new Blob([JSON.stringify(data)],{type:"application/json"});
+    const file=new File([blob],name,{type:"application/json"});
+    let shared=false;
+    try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:"Order Book backup"});shared=true}}
+    catch(e){if(e&&e.name==="AbortError")return}
+    if(!shared)downloadBlob(blob,name);
+    await saveShopData({lastBackup:now()});
+    toast(shared?"Backup shared":"Backup saved to your downloads");render();
+  }catch(e){toast("The backup couldn't be made. Try again.")}
+}
+async function importBackup(input){
+  const f=input.files&&input.files[0];if(!f)return;
+  try{
+    const data=JSON.parse(await f.text());
+    if(data.app!=="order-book")throw new Error("not ours");
+    let added=0,updated=0;
+    for(const col of Object.keys(COLS)){
+      for(const [id,rec] of Object.entries(data[col]||{})){
+        const mine=S[col][id];
+        if(!mine){await put(col,id,rec);added++}
+        else if((rec.updatedAt||"")>(mine.updatedAt||"")){await put(col,id,rec);updated++}
+      }
+    }
+    for(const [id,url] of Object.entries(data.photos||{})){
+      if(S.photoUrls[id])continue;
+      const blob=await (await fetch(url)).blob();await IDB.put("photos",id,blob);S.photoUrls[id]=URL.createObjectURL(blob);
+    }
+    if(data.shop){const keep={geminiKey:S.shop.geminiKey,geminiModel:S.shop.geminiModel};await saveShopData({...data.shop,...Object.fromEntries(Object.entries(keep).filter(([,v])=>v))})}
+    S.importMsg=`Restored. ${added} records added, ${updated} updated. Records already on this phone that were newer were kept.`;
+  }catch(e){S.importMsg="That file isn't an Order Book backup, or it's damaged."}
+  render();
+}
+
+/* ---------- Gemini ---------- */
+async function gemini(parts){
+  const key=S.shop.geminiKey;if(!key)throw {kind:"nokey"};
+  if(!navigator.onLine)throw {kind:"offline"};
+  const model=(S.shop.geminiModel||DEFAULT_MODEL).trim();
+  let res;
+  try{
+    res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({contents:[{role:"user",parts}],generationConfig:{responseMimeType:"application/json",temperature:0}})});
+  }catch(e){throw {kind:"offline"}}
+  const body=await res.json().catch(()=>({}));
+  if(!res.ok)throw {kind:"http",status:res.status,msg:body.error&&body.error.message||""};
+  const cand=body.candidates&&body.candidates[0];
+  const text=cand&&cand.content&&(cand.content.parts||[]).map(p=>p.text||"").join("")||"";
+  if(!text)throw {kind:"empty",reason:cand&&cand.finishReason};
+  try{return JSON.parse(text)}catch(e){
+    const m=text.match(/[\[{][\s\S]*[\]}]/);if(m){try{return JSON.parse(m[0])}catch(_){}}
+    throw {kind:"badjson"};
+  }
+}
+function aiErr(e){
+  if(!e)return "Something went wrong. Try again.";
+  if(e.kind==="nokey")return "Add your free Gemini key in Settings first.";
+  if(e.kind==="offline")return "No internet connection. Scanning needs internet; everything else works offline.";
+  if(e.kind==="badjson"||e.kind==="empty")return "Gemini couldn't read that clearly. Try a sharper photo in better light.";
+  if(e.status===400&&/API key/i.test(e.msg))return "Google says the key isn't valid. Copy it again from AI Studio and paste it in Settings.";
+  if(e.status===403)return "Google refused the key. Check it's enabled for the Gemini API in AI Studio.";
+  if(e.status===404)return "Google doesn't recognise that model name. In Settings, set the model back to "+DEFAULT_MODEL+".";
+  if(e.status===429)return "You've hit Google's free limit for now. Wait a minute and try again, or try again tomorrow.";
+  if(e.status>=500)return "Google's service is busy. Try again in a moment.";
+  return "Gemini returned an error"+(e.msg?": "+e.msg:".");
+}
+
+/* ---------- Scan ---------- */
+let scanFile=null,scanUrl=null;
+function renderScan(){
+  const sc=S.scan;
+  if(sc.status==="review")return renderReview();
+  const noKey=!S.shop.geminiKey;
+  return `<h2>Scan a page</h2>
+  <p class="muted">Take a photo of a page from your measurement book. Gemini reads the handwriting, then you check every value before anything is saved.</p>
+  ${noKey?`<div class="note">Scanning needs a free Gemini key. <a href="#" onclick="go('settings');return false">Set it up in Settings</a>; it takes about two minutes.</div>`:""}
+  <div class="drop">
+    ${scanUrl?`<img src="${scanUrl}" alt="Page to read">`:""}
+    <label class="btn ${scanUrl?"":"primary"}" for="scan-file">${scanUrl?"Use a different photo":"Take or choose a photo"}</label>
+    <input id="scan-file" type="file" accept="image/*" capture="environment" hidden onchange="pickScan(this)">
+    ${scanUrl?`<button class="btn primary" onclick="readScan()" ${sc.status==="reading"||noKey?"disabled":""}>${sc.status==="reading"?"Reading the handwriting…":"Read this page"}</button>`:""}
+    ${sc.status==="reading"?`<span class="muted" style="font-size:.85rem">This usually takes 10–40 seconds.</span>`:""}
+  </div>
+  ${sc.msg?`<div class="note">${esc(sc.msg)}</div>`:""}
+  <p class="muted" style="font-size:.85rem">Tips: flat page, good light, one page per photo. Write units (cm or in) on the page if you can.</p>`;
+}
+function pickScan(input){const f=input.files&&input.files[0];if(!f)return;scanFile=f;if(scanUrl)URL.revokeObjectURL(scanUrl);scanUrl=URL.createObjectURL(f);S.scan={status:"idle"};render()}
+const SCAN_PROMPT=()=>`This photo is a page from a tailor's handwritten record book. It may hold one or several clients, each with body measurements and possibly orders (garment, fabric, dates, prices, deposits). Read it carefully.
+Reply with only JSON in this shape:
+{"records":[{"name":"","phone":"","unit":"cm" or "in" or "","measuredOn":"YYYY-MM-DD or empty","measurements":{"waist":30},"extra":{"Armhole":"18"},"orders":[{"garment":"","fabric":"","dueDate":"YYYY-MM-DD or empty","price":null,"deposit":null,"notes":""}],"notes":"","unclear":"anything you could not read confidently"}]}
+Rules: measurement keys must be from this list: ${MEAS.map(m=>m[0]).join(", ")}. Map common tailor abbreviations (e.g. B/Bust/Chest=bust, W=waist, H/Hip=hips, Sh/Shoulder=shoulder, SL/Sleeve=sleeve, L/Length for a dress=dressLength, Tr/Trouser length=trouserLength). Values are numbers; convert fractions like 36½ to 36.5. Any other measurement goes in "extra" with its label as written. Prices are plain numbers without currency signs. Today is ${today()}; if a date has no year, assume the nearest future date. Do not invent values: leave a field out if it is not on the page. If you are unsure of a value, still include your best reading and mention it in "unclear".`;
+async function readScan(){
+  if(!scanFile)return;
+  S.scan={status:"reading"};render();
+  try{
+    const small=await shrinkImage(scanFile,2000,0.85);
+    const b64=(await blobToDataUrl(small)).split(",")[1];
+    const r=await gemini([{text:SCAN_PROMPT()},{inline_data:{mime_type:"image/jpeg",data:b64}}]);
+    const recs=Array.isArray(r&&r.records)?r.records:Array.isArray(r)?r:[];
+    if(!recs.length){S.scan={status:"idle",msg:"No client records were found on that page. Try a clearer photo."};return render()}
+    S.scan={status:"review",records:recs.map(x=>({...x,target:matchClient(x.name)}))};render();
+  }catch(e){S.scan={status:"idle",msg:aiErr(e)};render()}
+}
+function matchClient(name){const n=(name||"").trim().toLowerCase();if(!n)return "new";const c=Object.values(S.clients).find(c=>(c.name||"").trim().toLowerCase()===n);return c?c.id:"new"}
+function renderReview(){
+  const recs=S.scan.records;
+  const clients=Object.values(S.clients).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  return `<button class="back" onclick="S.scan={status:'idle'};render()">← Back to photo</button>
+  <h2>Check what was read</h2>
+  <p class="muted">Fix anything that's wrong, then save. Nothing is stored until you tap Save.</p>
+  ${recs.map((r,i)=>`<div class="panel">
+    ${r.unclear?`<div class="note">Couldn't read clearly: ${esc(r.unclear)}</div>`:""}
+    <label class="f">Save to<select id="s${i}-target">
+      <option value="new" ${r.target==="new"?"selected":""}>New client</option>
+      ${clients.map(c=>`<option value="${esc(c.id)}" ${c.id===r.target?"selected":""}>Update ${esc(c.name)}</option>`).join("")}
+      <option value="skip">Skip this record</option>
+    </select></label>
+    <div class="grid2"><label class="f">Name<input id="s${i}-name" value="${esc(r.name)}"></label><label class="f">Phone<input id="s${i}-phone" type="tel" value="${esc(r.phone)}"></label></div>
+    <div class="grid2"><label class="f">Units<select id="s${i}-unit"><option value="cm" ${r.unit!=="in"?"selected":""}>Centimetres</option><option value="in" ${r.unit==="in"?"selected":""}>Inches</option></select></label>
+    <label class="f">Measured on<input id="s${i}-date" type="date" value="${esc(r.measuredOn||today())}"></label></div>
+    ${measInputs("s"+i,r.measurements,r.extra)}
+    <label class="f">Notes<textarea id="s${i}-notes">${esc(r.notes)}</textarea></label>
+    ${(r.orders||[]).map((o,j)=>`<div class="sep"></div>
+      <label class="row" style="font-weight:600"><input type="checkbox" id="s${i}o${j}-on" checked style="width:auto"> Order: ${esc(o.garment||"Garment")}</label>
+      <div class="grid2"><label class="f">Garment<input id="s${i}o${j}-garment" value="${esc(o.garment)}"></label><label class="f">Fabric<input id="s${i}o${j}-fabric" value="${esc(o.fabric)}"></label></div>
+      <div class="grid2"><label class="f">Due date<input type="date" id="s${i}o${j}-due" value="${esc(o.dueDate)}"></label>
+      <div class="grid2"><label class="f">Price<input inputmode="decimal" id="s${i}o${j}-price" value="${esc(o.price??"")}"></label><label class="f">Deposit<input inputmode="decimal" id="s${i}o${j}-deposit" value="${esc(o.deposit??"")}"></label></div></div>
+      <label class="f">Order notes<input id="s${i}o${j}-notes" value="${esc(o.notes)}"></label>`).join("")}
+  </div>`).join("")}
+  ${S.status?`<div class="note">${esc(S.status)}</div>`:""}
+  <button class="btn primary" onclick="saveScan()">Save ${recs.length>1?"all "+recs.length+" records":"record"}</button>`;
+}
+async function saveScan(){
+  const recs=S.scan.records;let saved=0;
+  try{
+    for(let i=0;i<recs.length;i++){
+      const target=val(`s${i}-target`);if(target==="skip")continue;
+      const name=val(`s${i}-name`);if(!name&&target==="new")continue;
+      const {m,extra}=readMeas("s"+i);const t=now();let cid;
+      if(target==="new"){
+        cid=await put("clients",null,{name,phone:val(`s${i}-phone`),unit:val(`s${i}-unit`),measuredOn:val(`s${i}-date`),measurements:m,extra,notes:val(`s${i}-notes`),createdAt:t,updatedAt:t});
+      }else{
+        const c=S.clients[target]||{};cid=target;
+        await put("clients",cid,{...c,name:name||c.name,phone:val(`s${i}-phone`)||c.phone||"",unit:val(`s${i}-unit`),measuredOn:val(`s${i}-date`),measurements:{...(c.measurements||{}),...m},extra:{...(c.extra||{}),...extra},notes:[c.notes,val(`s${i}-notes`)].filter(Boolean).join("\n"),updatedAt:t,createdAt:c.createdAt||t});
+      }
+      for(let j=0;j<(recs[i].orders||[]).length;j++){
+        const on=document.getElementById(`s${i}o${j}-on`);if(!on||!on.checked)continue;
+        await put("orders",null,{clientId:cid,clientName:name,garment:val(`s${i}o${j}-garment`)||"Garment",fabric:val(`s${i}o${j}-fabric`),dueDate:val(`s${i}o${j}-due`),fittingDate:"",price:num(val(`s${i}o${j}-price`)),deposit:num(val(`s${i}o${j}-deposit`)),depositDate:today(),payments:[],photos:[],status:"Measured",notes:val(`s${i}o${j}-notes`),createdAt:t,updatedAt:t});
+      }
+      saved++;
+    }
+    S.scan={status:"idle"};scanFile=null;if(scanUrl)URL.revokeObjectURL(scanUrl);scanUrl=null;
+    toast(saved===1?"1 record saved":saved+" records saved");go("clients");
+  }catch(e){S.status=errMsg(e);render()}
+}
+
+/* ---------- misc ---------- */
+function errMsg(e){
+  if(e&&(e.name==="QuotaExceededError"||/quota/i.test(e.message||"")))return "Your phone is out of space for the app. Remove old photos or collected orders, then try again.";
+  return "That didn't save. Try again.";
+}
+function copy(t,msg){try{navigator.clipboard.writeText(t).then(()=>toast(msg||"Copied"),()=>toast("Select the text to copy it"))}catch(e){toast("Select the text to copy it")}}
+
+const TAB_OF={orders:"orders",order:"orders",orderForm:"orders",clients:"clients",client:"clients",clientForm:"clients",fabric:"fabric",fabricForm:"fabric",money:"money",scan:"scan",settings:"settings"};
+function render(){
+  if(!S.ready)return;
+  ["orders","clients","fabric","money","scan","settings"].forEach(t=>$("#tab-"+t).setAttribute("aria-current",TAB_OF[S.view]===t));
+  const v={orders:renderOrders,order:renderOrder,clients:renderClients,client:renderClient,clientForm:renderClientForm,orderForm:renderOrderForm,fabric:renderFabric,fabricForm:renderFabricForm,money:renderMoney,scan:renderScan,settings:renderSettings}[S.view];
+  $("#main").innerHTML=v();
+  $("#shopname").textContent=S.shop.name||"Order Book";
+  if(S.view==="settings")showUsage();
+}
+async function showUsage(){
+  try{const e=await navigator.storage.estimate();const el=document.getElementById("usage");if(el&&e.usage!=null)el.textContent=`Using ${(e.usage/1048576).toFixed(1)} MB on this phone.`}catch(e){}
+}
+function renderKeep(id){const el=document.getElementById(id);const p=el.selectionStart;render();const n=document.getElementById(id);n.focus();try{n.setSelectionRange(p,p)}catch(e){}}
+
+(async()=>{
+  try{
+    await IDB.open();
+    for(const col of Object.keys(COLS))for(const [k,v] of await IDB.entries(col))S[col][k]={...v,id:k};
+    S.shop=(await IDB.get("settings","shop"))||{};
+    for(const [k,b] of await IDB.entries("photos"))S.photoUrls[k]=URL.createObjectURL(b);
+    S.ready=true;render();
+  }catch(e){
+    $("#main").innerHTML=`<div class="note">This browser can't store records. Open the app in Chrome, and make sure you're not in an incognito tab.</div>`;
+  }
+  if("serviceWorker" in navigator&&location.protocol==="https:"){try{navigator.serviceWorker.register("sw.js")}catch(e){}}
+})();
+</script>
+</body>
+</html>
